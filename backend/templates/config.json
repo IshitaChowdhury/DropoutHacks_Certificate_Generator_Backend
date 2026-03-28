@@ -1,0 +1,55 @@
+{
+  "templateFile": "CertificateTemplate.pdf",
+  "fields": {
+    "name": {
+      "fontFile": "fonts/Adriana-Regular.ttf",
+      "preferredSize": 40,
+      "minSize": 22,
+      "maxWidth": 480,
+      "y": 266,
+      "color": [0.09, 0.25, 0.31]
+    },
+    "team_name": {
+      "fontFile": "fonts/Adriana-Regular.ttf",
+      "preferredSize": 12,
+      "minSize": 9,
+      "maxWidth": 130,
+      "placement": "withTeamInline",
+      "forceWithTeamInline": true,
+      "usePhraseAnchor": true,
+      "withPhrase": "with enthusiasm.",
+      "withStartX": 315,
+      "withEndX": 505,
+      "withBaselineY": 202,
+      "gapBeforeWith": 6,
+      "gapAfterWith": 6,
+      "minAfterWithX": 0,
+      "maxWidthBeforeWith": 150,
+      "maxWidthAfterWith": 170,
+      "centerX": 510,
+      "y": 202,
+      "color": [0.09, 0.25, 0.31],
+      "inlinePaddingLeft": 2,
+      "baselineOffset": 0,
+      "eraseUnderline": {
+        "x": 445,
+        "y": 202,
+        "width": 130,
+        "height": 12,
+        "color": [0.8, 0.36, 0.19]
+      },
+      "inlineSentence": {
+        "prefix": "",
+        "suffix": " with enthusiasm.",
+        "x": 220,
+        "y": 194,
+        "width": 430,
+        "height": 26,
+        "preferredSize": 12,
+        "minSize": 9,
+        "bgColor": [0.8, 0.36, 0.19],
+        "textColor": [1, 1, 1]
+      }
+    }
+  }
+}
