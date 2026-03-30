@@ -2,10 +2,9 @@ const fs = require('fs');
 const path = require('path');
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 const fontkit = require('@pdf-lib/fontkit');
+const { TEMPLATES_DIR, TEMPLATE_CONFIG_PATH } = require('../utils/fileHelper');
 
-const TEMPLATE_DIR = path.join(__dirname, '../templates');
-const TEMPLATE_CONFIG_PATH = path.join(TEMPLATE_DIR, 'config.json');
-const ORBITRON_FONT_PATH = path.join(TEMPLATE_DIR, 'fonts', 'Orbitron.ttf');
+const FALLBACK_FONT_PATH = path.join(TEMPLATES_DIR, 'fonts', 'Orbitron.ttf');
 
 function resolveConfiguredFontPath(configPathValue) {
   if (!configPathValue || typeof configPathValue !== 'string') {
@@ -16,7 +15,7 @@ function resolveConfiguredFontPath(configPathValue) {
     return configPathValue;
   }
 
-  return path.join(TEMPLATE_DIR, configPathValue);
+  return path.join(TEMPLATES_DIR, configPathValue);
 }
 
 function fitTextSize(text, font, preferred, min, maxWidth) {
@@ -51,7 +50,7 @@ function loadTemplateConfig() {
 
 async function generateCertificate(participant) {
   const config = loadTemplateConfig();
-  const templatePath = path.join(TEMPLATE_DIR, config.templateFile);
+  const templatePath = path.join(TEMPLATES_DIR, config.templateFile);
 
   if (!fs.existsSync(templatePath)) {
     throw new Error(`Template PDF not found: ${templatePath}`);
@@ -60,6 +59,7 @@ async function generateCertificate(participant) {
   const templateBytes = fs.readFileSync(templatePath);
   const pdfDoc = await PDFDocument.load(templateBytes);
   pdfDoc.registerFontkit(fontkit);
+
   const page = pdfDoc.getPages()[0];
   const pageWidth = page.getWidth();
 
@@ -78,9 +78,9 @@ async function generateCertificate(participant) {
   if (configuredNameFontPath && fs.existsSync(configuredNameFontPath)) {
     const nameFontBytes = fs.readFileSync(configuredNameFontPath);
     nameFont = await pdfDoc.embedFont(nameFontBytes, { subset: true });
-  } else if (fs.existsSync(ORBITRON_FONT_PATH)) {
-    const orbitronBytes = fs.readFileSync(ORBITRON_FONT_PATH);
-    nameFont = await pdfDoc.embedFont(orbitronBytes, { subset: true });
+  } else if (fs.existsSync(FALLBACK_FONT_PATH)) {
+    const fallbackFontBytes = fs.readFileSync(FALLBACK_FONT_PATH);
+    nameFont = await pdfDoc.embedFont(fallbackFontBytes, { subset: true });
   }
 
   if (configuredTeamFontPath && fs.existsSync(configuredTeamFontPath)) {
@@ -90,7 +90,6 @@ async function generateCertificate(participant) {
     teamFont = nameFont;
   }
 
-  // Draw participant name (centered, larger)
   const nameSize = fitTextSize(nameText, nameFont, nameCfg.preferredSize, nameCfg.minSize, nameCfg.maxWidth);
   const nameWidth = nameFont.widthOfTextAtSize(nameText, nameSize);
 
@@ -102,19 +101,13 @@ async function generateCertificate(participant) {
     color: rgb(nameCfg.color[0], nameCfg.color[1], nameCfg.color[2]),
   });
 
-  // Draw team name in the blank after "Team" on the sentence block.
-  const teamSize = fitTextSize(
-    teamText,
-    teamFont,
-    teamCfg.preferredSize,
-    teamCfg.minSize,
-    teamCfg.maxWidth
-  );
+  const teamSize = fitTextSize(teamText, teamFont, teamCfg.preferredSize, teamCfg.minSize, teamCfg.maxWidth);
   let finalTeamSize = teamSize;
   let teamWidth = teamFont.widthOfTextAtSize(teamText, finalTeamSize);
   const teamCenterX = typeof teamCfg.centerX === 'number' ? teamCfg.centerX : pageWidth / 2;
   let teamX = teamCenterX - (teamWidth / 2);
   let teamY = teamCfg.y;
+
   const teamPlacement = teamCfg.placement || 'withTeamInline';
   const withPhrase = typeof teamCfg.withPhrase === 'string' ? teamCfg.withPhrase : 'with enthusiasm.';
   const withPhraseSize = typeof teamCfg.withPhraseSize === 'number' ? teamCfg.withPhraseSize : finalTeamSize;
@@ -123,23 +116,26 @@ async function generateCertificate(participant) {
   const withPhraseStartX = withPhraseCenterX - (withPhraseWidth / 2);
   const withPhraseEndX = withPhraseStartX + withPhraseWidth;
   const usePhraseAnchor = teamCfg.usePhraseAnchor !== false;
+
   let drewTeamInline = false;
 
   if ((teamPlacement === 'withTeamInline' || teamCfg.forceWithTeamInline === true) && teamCfg.inlineSentence) {
     const inlineCfg = teamCfg.inlineSentence;
     const prefix = typeof inlineCfg.prefix === 'string' ? inlineCfg.prefix : 'with ';
     const suffix = typeof inlineCfg.suffix === 'string' ? inlineCfg.suffix : ' enthusiasm.';
+
     const lineX = typeof inlineCfg.x === 'number' ? inlineCfg.x : withPhraseStartX;
     const lineY = typeof inlineCfg.y === 'number' ? inlineCfg.y : teamCfg.y;
     const lineWidth = typeof inlineCfg.width === 'number' ? inlineCfg.width : withPhraseWidth;
     const lineHeight = typeof inlineCfg.height === 'number' ? inlineCfg.height : Math.max(12, finalTeamSize + 2);
+
     const lineBg = Array.isArray(inlineCfg.bgColor) ? inlineCfg.bgColor : [1, 1, 1];
     const lineTextColor = Array.isArray(inlineCfg.textColor) ? inlineCfg.textColor : [1, 1, 1];
     const teamTextColor = Array.isArray(teamCfg.color) ? teamCfg.color : [0, 0, 0];
+
     const inlinePreferred = typeof inlineCfg.preferredSize === 'number' ? inlineCfg.preferredSize : finalTeamSize;
     const inlineMin = typeof inlineCfg.minSize === 'number' ? inlineCfg.minSize : teamCfg.minSize;
 
-    // Clear the existing static "with enthusiasm." text, then redraw with team inserted next to "with".
     page.drawRectangle({
       x: lineX,
       y: lineY,
@@ -240,13 +236,11 @@ async function generateCertificate(participant) {
       ),
     });
 
-    // Place the team label directly after "Team" (left-anchored in placeholder).
     const inlinePaddingLeft = typeof teamCfg.inlinePaddingLeft === 'number' ? teamCfg.inlinePaddingLeft : 3;
     const baselineOffset = typeof teamCfg.baselineOffset === 'number' ? teamCfg.baselineOffset : 1;
     const maxInlineWidth = Math.max(0, teamCfg.eraseUnderline.width - inlinePaddingLeft - 2);
 
     if (teamWidth > maxInlineWidth) {
-      // Keep text inside the placeholder without changing configured max width constraints.
       finalTeamSize = fitTextSize(teamText, teamFont, finalTeamSize, teamCfg.minSize, maxInlineWidth);
       teamWidth = teamFont.widthOfTextAtSize(teamText, finalTeamSize);
     }
@@ -270,4 +264,6 @@ async function generateCertificate(participant) {
   return Buffer.from(pdfBytes);
 }
 
-module.exports = { generateCertificate };
+module.exports = {
+  generateCertificate,
+};
